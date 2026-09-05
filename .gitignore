@@ -1,6 +1,4 @@
-AGENTS.md
-CLAUDE.md
-docs/
+docs/the-ark/
 __pycache__/
 *.py[cod]
 .venv/
