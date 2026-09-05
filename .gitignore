@@ -1,3 +1,10 @@
 AGENTS.md
 CLAUDE.md
 docs/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+.open-harness/
