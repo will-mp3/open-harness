@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from open_harness.llm.translate import ChunkTranslator
+from open_harness.llm.translate import ChunkTranslator, parse_usage
 from open_harness.schema.events import (
   Finish,
   ReasoningDelta,
@@ -376,3 +376,65 @@ def test_finish_finalizes_an_open_tool_call() -> None:
   ]
 
   assert translator.finish() == []
+
+
+@pytest.mark.parametrize(
+  "raw",
+  [
+    pytest.param(None, id="missing"),
+    pytest.param({}, id="empty"),
+    pytest.param(
+      {
+        "prompt_tokens": None,
+        "completion_tokens": None,
+        "total_tokens": None,
+        "prompt_tokens_details": None,
+        "completion_tokens_details": None,
+        "cache_creation_input_tokens": None,
+      },
+      id="null-fields",
+    ),
+  ],
+)
+def test_missing_usage_values_default_to_zero(raw: dict[str, Any] | None) -> None:
+  usage = parse_usage(raw)
+
+  assert usage == Usage()
+  assert usage.breakdown_matches_input
+
+
+def test_usage_preserves_inclusive_totals_and_token_breakdowns() -> None:
+  usage = parse_usage(
+    {
+      "prompt_tokens": 100,
+      "completion_tokens": 20,
+      "prompt_tokens_details": {"cached_tokens": 30},
+      "cache_creation_input_tokens": 10,
+      "completion_tokens_details": {"reasoning_tokens": 5},
+    }
+  )
+
+  assert usage == Usage(
+    input_tokens=100,
+    output_tokens=20,
+    total_tokens=120,
+    non_cached_input_tokens=60,
+    cache_read_input_tokens=30,
+    cache_write_input_tokens=10,
+    reasoning_tokens=5,
+  )
+  assert usage.breakdown_matches_input
+
+
+def test_inconsistent_cache_counts_remain_detectable() -> None:
+  usage = parse_usage(
+    {
+      "prompt_tokens": 10,
+      "prompt_tokens_details": {"cached_tokens": 30},
+    }
+  )
+
+  assert usage.input_tokens == 10
+  assert usage.cache_read_input_tokens == 30
+  assert usage.non_cached_input_tokens == 0
+  assert not usage.breakdown_matches_input
