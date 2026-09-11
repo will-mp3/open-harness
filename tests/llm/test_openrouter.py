@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 
 import httpx
 import pytest
@@ -18,12 +19,22 @@ SSE_BODY = (
 )
 
 
-def _client(handler: Callable[[httpx.Request], httpx.Response]) -> OpenRouterClient:
+def _client(
+  handler: (
+    Callable[[httpx.Request], httpx.Response]
+    | Callable[[httpx.Request], Coroutine[None, None, httpx.Response]]
+  ),
+  *,
+  header_timeout: float = 300.0,
+  chunk_timeout: float = 300.0,
+) -> OpenRouterClient:
   return OpenRouterClient(
     api_key="sk-test",
     referer="https://example.test",
     title="test",
     transport=httpx.MockTransport(handler),
+    header_timeout=header_timeout,
+    chunk_timeout=chunk_timeout,
   )
 
 
@@ -174,3 +185,30 @@ async def test_non_object_payloads_are_skipped(payload: bytes) -> None:
   assert isinstance(events[-1], Finish)
   assert events[-1].reason == "stop"
   assert not any(isinstance(event, ProviderError) for event in events)
+
+
+async def test_header_timeout_cancels_pending_request() -> None:
+  never_respond = asyncio.Event()
+  handler_cancelled = asyncio.Event()
+
+  async def handler(request: httpx.Request) -> httpx.Response:
+    try:
+      await never_respond.wait()
+    except asyncio.CancelledError:
+      handler_cancelled.set()
+      raise
+
+    return httpx.Response(200, content=SSE_BODY)
+
+  client = _client(handler, header_timeout=0.01)
+
+  async with asyncio.timeout(1.0):
+    events = [event async for event in client.stream(LLMRequest(model="m"))]
+
+  assert len(events) == 1
+  error = events[0]
+  assert isinstance(error, ProviderError)
+  assert error.status is None
+  assert error.retryable is True
+  assert "headers" in error.message.lower()
+  assert handler_cancelled.is_set()
