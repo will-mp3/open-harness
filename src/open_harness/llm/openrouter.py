@@ -1,12 +1,23 @@
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from typing import Any, cast
 
 import httpx
 
+from open_harness.llm.sse import SSEParser
+from open_harness.llm.translate import ChunkTranslator
+from open_harness.schema.events import LLMEvent, ProviderError
 from open_harness.schema.request import LLMRequest
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+_CONNECT_TIMEOUT = 30.0
+
+
+def _is_retryable_status(status: int) -> bool:
+  return status in (408, 429) or 500 <= status < 600
 
 
 class OpenRouterClient:
@@ -76,3 +87,118 @@ class OpenRouterClient:
       body["reasoning"] = {"effort": request.reasoning_effort}
 
     return body
+
+  async def _read_chunks(self, response: httpx.Response) -> AsyncIterator[bytes]:
+    chunks = response.aiter_bytes()
+
+    while True:
+      try:
+        async with asyncio.timeout(self._chunk_timeout):
+          chunk = await anext(chunks)
+      except StopAsyncIteration:
+        return
+
+      yield chunk
+
+  async def stream(self, request: LLMRequest) -> AsyncIterator[LLMEvent]:
+    parser = SSEParser()
+    translator = ChunkTranslator()
+
+    # Separate deadlines below cover headers and body reads independently
+    timeout = httpx.Timeout(_CONNECT_TIMEOUT, read=None)
+
+    async with httpx.AsyncClient(
+      timeout=timeout,
+      base_url=self._base_url,
+      transport=self._transport,
+    ) as http:
+      outgoing = http.build_request(
+        "POST",
+        "chat/completions",
+        json=self._body(request),
+        headers=self._headers(),
+      )
+
+      try:
+        async with asyncio.timeout(self._header_timeout):
+          response = await http.send(outgoing, stream=True)
+      except TimeoutError:
+        yield ProviderError(
+          message=f"No response headers with {self._header_timeout}s",
+          retryable=True,
+        )
+        return
+      except httpx.HTTPError as exc:
+        yield ProviderError(
+          message=str(exc) or "Unable to open the provider stream",
+          retryable=True,
+        )
+        return
+
+      try:
+        if response.status_code >= 400:
+          detail = bytearray()
+
+          async for raw in self._read_chunks(response):
+            detail.extend(raw[: 500 - len(detail)])
+            if len(detail) >= 500:
+              break
+
+          yield ProviderError(
+            message=(f"HTTP {response.status_code}: {detail.decode('utf-8', errors='replace')}"),
+            status=response.status_code,
+            retryable=_is_retryable_status(response.status_code),
+          )
+          return
+
+        async for raw in self._read_chunks(response):
+          for payload in parser.feed(raw):
+            if payload == "[DONE]":
+              for event in translator.finish():
+                yield event
+              return
+
+            try:
+              value: Any = json.loads(payload)
+            except json.JSONDecodeError:
+              continue
+
+            chunk = cast(dict[str, Any], value)
+
+            if "error" in chunk:
+              error = chunk["error"]
+
+              if isinstance(error, dict):
+                details = cast(dict[str, Any], error)
+                code = details.get("code")
+                message = str(details.get("message") or "Provider reported an error")
+              else:
+                code = None
+                message = str(error or "Provider reported an error")
+
+              status = code if isinstance(code, int) and not isinstance(code, bool) else None
+
+              yield ProviderError(
+                message=message,
+                status=status,
+                retryable=True if status is None else _is_retryable_status(status),
+              )
+              return
+
+            for event in translator.translate(chunk):
+              yield event
+
+        for event in translator.finish():
+          yield event
+
+      except TimeoutError:
+        yield ProviderError(
+          message=f"Provider stream stalled for more than {self._chunk_timeout}s", retryable=True
+        )
+      except httpx.HTTPError as exc:
+        yield ProviderError(
+          message=str(exc) or "Provider stream failed",
+          retryable=True,
+        )
+      finally:
+        await response.aclose()
