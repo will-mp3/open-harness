@@ -156,7 +156,7 @@ async def test_inline_error_terminates_the_stream() -> None:
 
 @pytest.mark.parametrize(
   "payload",
-  [b"null", b"[]", b"42", b"text", b"true"],
+  [b"null", b"[]", b"42", b'"text"', b"true"],
 )
 async def test_non_object_payloads_are_skipped(payload: bytes) -> None:
   body = b"data: " + payload + b"\n\n" + SSE_BODY
