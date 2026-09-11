@@ -5,8 +5,8 @@ from collections.abc import Callable
 
 import httpx
 import pytest
-
 from open_harness.llm.openrouter import OpenRouterClient
+
 from open_harness.schema.events import Finish, ProviderError, TextDelta
 from open_harness.schema.request import LLMRequest, ToolDefinition
 
@@ -17,6 +17,7 @@ SSE_BODY = (
   b"data: [DONE]\n\n"
 )
 
+
 def _client(handler: Callable[[httpx.Request], httpx.Response]) -> OpenRouterClient:
   return OpenRouterClient(
     api_key="sk-test",
@@ -24,6 +25,7 @@ def _client(handler: Callable[[httpx.Request], httpx.Response]) -> OpenRouterCli
     title="test",
     transport=httpx.MockTransport(handler),
   )
+
 
 async def test_succesful_stream_preserves_text_and_final_usage() -> None:
   def handler(request: httpx.Request) -> httpx.Response:
@@ -45,6 +47,7 @@ async def test_succesful_stream_preserves_text_and_final_usage() -> None:
   assert finishes[0].usage.input_tokens == 5
   assert finishes[0].usage.output_tokens == 2
   assert events[-1] == finishes[0]
+
 
 async def test_request_is_lowered_to_openrouter_format() -> None:
   captured: list[httpx.Request] = []
@@ -104,6 +107,7 @@ async def test_request_is_lowered_to_openrouter_format() -> None:
     "usage": {"include": True},
   }
 
+
 @pytest.mark.parametrize(
   ("status", "retryable"),
   [
@@ -129,11 +133,9 @@ async def test_http_failure_becomes_provider_error(
   assert error.retryable is retryable
   assert "provider rejected request" in error.message
 
+
 async def test_inline_error_terminates_the_stream() -> None:
-  body = (
-    b'data: {"error":{"message":"upstream exploded","code":502}}\n\n'
-    + SSE_BODY
-  )
+  body = b'data: {"error":{"message":"upstream exploded","code":502}}\n\n' + SSE_BODY
 
   def handler(request: httpx.Request) -> httpx.Response:
     return httpx.Response(
