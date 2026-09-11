@@ -163,6 +163,9 @@ class OpenRouterClient:
             except json.JSONDecodeError:
               continue
 
+            if not isinstance(value, dict):
+              continue
+
             chunk = cast(dict[str, Any], value)
 
             if "error" in chunk:
