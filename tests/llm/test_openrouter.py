@@ -5,8 +5,8 @@ from collections.abc import Callable
 
 import httpx
 import pytest
-from open_harness.llm.openrouter import OpenRouterClient
 
+from open_harness.llm.openrouter import OpenRouterClient
 from open_harness.schema.events import Finish, ProviderError, TextDelta
 from open_harness.schema.request import LLMRequest, ToolDefinition
 
@@ -152,3 +152,25 @@ async def test_inline_error_terminates_the_stream() -> None:
   assert error.status == 502
   assert error.retryable is True
   assert "upstream exploded" in error.message
+
+
+@pytest.mark.parametrize(
+  "payload",
+  [b"null", b"[]", b"42", b"text", b"true"],
+)
+async def test_non_object_payloads_are_skipped(payload: bytes) -> None:
+  body = b"data: " + payload + b"\n\n" + SSE_BODY
+
+  def handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+      200,
+      headers={"content-type": "text/event-stream"},
+      content=body,
+    )
+
+  events = [event async for event in _client(handler).stream(LLMRequest(model="m"))]
+
+  assert "".join(event.text for event in events if isinstance(event, TextDelta)) == "Hi"
+  assert isinstance(events[-1], Finish)
+  assert events[-1].reason == "stop"
+  assert not any(isinstance(event, ProviderError) for event in events)
