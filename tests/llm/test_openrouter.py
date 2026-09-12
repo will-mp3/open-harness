@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from open_harness.llm.openrouter import OpenRouterClient
-from open_harness.schema.events import Finish, ProviderError, TextDelta
+from open_harness.schema.events import Finish, LLMEvent, ProviderError, TextDelta
 from open_harness.schema.request import LLMRequest, ToolDefinition
 
 SSE_BODY = (
@@ -249,5 +249,39 @@ async def test_chunk_timeout_preserves_text_and_closes_response() -> None:
   assert "stalled" in errors[0].message.lower()
   assert events[-1] == errors[0]
 
+  assert not any(isinstance(event, Finish) for event in events)
+  assert body.closed
+
+
+async def test_cancellation_propagates_and_closes_response() -> None:
+  body = _StallingStream()
+
+  def handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+      200,
+      headers={"content-type": "text/event-stream"},
+      stream=body,
+    )
+
+  client = _client(handler)
+  events: list[LLMEvent] = []
+
+  async def consume() -> None:
+    async for event in client.stream(LLMRequest(model="m")):
+      events.append(event)
+
+  async with asyncio.timeout(1.0):
+    async with asyncio.TaskGroup() as tasks:
+      consumer = tasks.create_task(consume())
+
+      await body.waiting.wait()
+      consumer.cancel()
+
+      with pytest.raises(asyncio.CancelledError):
+        await consumer
+
+  assert consumer.cancelled()
+  assert "".join(event.text for event in events if isinstance(event, TextDelta)) == "Hi"
+  assert not any(isinstance(event, ProviderError) for event in events)
   assert not any(isinstance(event, Finish) for event in events)
   assert body.closed
