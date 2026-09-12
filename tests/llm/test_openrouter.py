@@ -285,3 +285,46 @@ async def test_cancellation_propagates_and_closes_response() -> None:
   assert not any(isinstance(event, ProviderError) for event in events)
   assert not any(isinstance(event, Finish) for event in events)
   assert body.closed
+
+
+@pytest.mark.parametrize(
+  ("status", "retryable"),
+  [(401, False), (429, True)],
+)
+@pytest.mark.parametrize("failure", ["disconnect", "stall"])
+async def test_error_body_failure_preserves_http_status(
+  status: int,
+  retryable: bool,
+  failure: str,
+) -> None:
+  class ErrorBody(httpx.AsyncByteStream):
+    def __init__(self) -> None:
+      self.closed = False
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+      yield b"provider rejected request"
+
+      if failure == "disconnect":
+        raise httpx.ReadError("connection lost")
+
+      await asyncio.Event().wait()
+
+    async def aclose(self) -> None:
+      self.closed = True
+
+  body = ErrorBody()
+
+  def handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(status, stream=body)
+
+  client = _client(handler, chunk_timeout=0.01)
+
+  async with asyncio.timeout(1.0):
+    events = [event async for event in client.stream(LLMRequest(model="m"))]
+
+  assert len(events) == 1
+  error = events[0]
+  assert isinstance(error, ProviderError)
+  assert error.status == status
+  assert error.retryable is retryable
+  assert body.closed
