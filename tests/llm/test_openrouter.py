@@ -329,6 +329,7 @@ async def test_error_body_failure_preserves_http_status(
   assert error.retryable is retryable
   assert body.closed
 
+
 @pytest.mark.parametrize(
   ("header_delay", "body_delay", "header_timeout", "chunk_timeout"),
   [
@@ -360,6 +361,25 @@ async def test_header_and_chunk_timeouts_are_independent(
 
   async with asyncio.timeout(1.0):
     events = [event async for event in client.stream(LLMRequest(model="m"))]
+
+  assert "".join(event.text for event in events if isinstance(event, TextDelta)) == "Hi"
+  assert isinstance(events[-1], Finish)
+  assert not any(isinstance(event, ProviderError) for event in events)
+
+
+async def test_consumer_processing_does_not_trigger_chunk_timeout() -> None:
+  def handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, content=SSE_BODY)
+
+  client = _client(handler, chunk_timeout=0.01)
+  events: list[LLMEvent] = []
+
+  async with asyncio.timeout(1.0):
+    async for event in client.stream(LLMRequest(model="m")):
+      events.append(event)
+
+      if len(events) == 1:
+        await asyncio.sleep(0.05)
 
   assert "".join(event.text for event in events if isinstance(event, TextDelta)) == "Hi"
   assert isinstance(events[-1], Finish)
