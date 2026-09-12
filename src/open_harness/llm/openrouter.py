@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from typing import Any, cast
 
 import httpx
@@ -139,13 +140,20 @@ class OpenRouterClient:
         if response.status_code >= 400:
           detail = bytearray()
 
-          async for raw in self._read_chunks(response):
-            detail.extend(raw[: 500 - len(detail)])
-            if len(detail) >= 500:
-              break
+          # Missing diagnostic text must not change the known HTTP classification
+          with suppress(TimeoutError, httpx.HTTPError):
+            async for raw in self._read_chunks(response):
+              detail.extend(raw[: 500 - len(detail)])
+              if len(detail) >= 500:
+                break
+
+          message = (
+            detail.decode("utf-8", errors="replace")
+            or "Provider returned no readable error details"
+          )
 
           yield ProviderError(
-            message=(f"HTTP {response.status_code}: {detail.decode('utf-8', errors='replace')}"),
+            message=f"HTTP {response.status_code}: {message}",
             status=response.status_code,
             retryable=_is_retryable_status(response.status_code),
           )
