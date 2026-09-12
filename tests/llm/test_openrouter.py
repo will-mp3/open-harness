@@ -328,3 +328,39 @@ async def test_error_body_failure_preserves_http_status(
   assert error.status == status
   assert error.retryable is retryable
   assert body.closed
+
+@pytest.mark.parametrize(
+  ("header_delay", "body_delay", "header_timeout", "chunk_timeout"),
+  [
+    (0.05, 0.0, 0.5, 0.01),
+    (0.0, 0.05, 0.01, 0.5),
+  ],
+)
+async def test_header_and_chunk_timeouts_are_independent(
+  header_delay: float,
+  body_delay: float,
+  header_timeout: float,
+  chunk_timeout: float,
+) -> None:
+  class DelayedBody(httpx.AsyncByteStream):
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+      await asyncio.sleep(body_delay)
+      yield SSE_BODY
+
+  async def handler(request: httpx.Request) -> httpx.Response:
+    assert request.extensions["timeout"]["read"] is None
+    await asyncio.sleep(header_delay)
+    return httpx.Response(200, stream=DelayedBody())
+
+  client = _client(
+    handler,
+    header_timeout=header_timeout,
+    chunk_timeout=chunk_timeout,
+  )
+
+  async with asyncio.timeout(1.0):
+    events = [event async for event in client.stream(LLMRequest(model="m"))]
+
+  assert "".join(event.text for event in events if isinstance(event, TextDelta)) == "Hi"
+  assert isinstance(events[-1], Finish)
+  assert not any(isinstance(event, ProviderError) for event in events)
