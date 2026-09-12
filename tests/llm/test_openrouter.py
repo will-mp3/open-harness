@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
 
 import httpx
 import pytest
@@ -36,6 +36,21 @@ def _client(
     header_timeout=header_timeout,
     chunk_timeout=chunk_timeout,
   )
+
+
+class _StallingStream(httpx.AsyncByteStream):
+  def __init__(self) -> None:
+    self.waiting = asyncio.Event()
+    self.closed = False
+
+  async def __aiter__(self) -> AsyncIterator[bytes]:
+    yield b'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n'
+
+    self.waiting.set()
+    await asyncio.Event().wait()
+
+  async def aclose(self) -> None:
+    self.closed = True
 
 
 async def test_succesful_stream_preserves_text_and_final_usage() -> None:
@@ -212,3 +227,27 @@ async def test_header_timeout_cancels_pending_request() -> None:
   assert error.retryable is True
   assert "headers" in error.message.lower()
   assert handler_cancelled.is_set()
+
+
+async def test_chunk_timeout_preserves_text_and_closes_response() -> None:
+  body = _StallingStream()
+
+  def handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=body)
+
+  client = _client(handler, chunk_timeout=0.01)
+
+  async with asyncio.timeout(1.0):
+    events = [event async for event in client.stream(LLMRequest(model="m"))]
+
+  assert "".join(event.text for event in events if isinstance(event, TextDelta)) == "Hi"
+  assert body.waiting.is_set()
+
+  errors = [event for event in events if isinstance(event, ProviderError)]
+  assert len(errors) == 1
+  assert errors[0].retryable is True
+  assert "stalled" in errors[0].message.lower()
+  assert events[-1] == errors[0]
+
+  assert not any(isinstance(event, Finish) for event in events)
+  assert body.closed
