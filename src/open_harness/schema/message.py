@@ -19,6 +19,13 @@ class ToolStatePending(BaseModel):
   raw: str = ""
 
 
+class ToolStateRunning(BaseModel):
+  status: Literal["running"] = "running"
+  input: dict[str, Any] = Field(default_factory=dict)
+  title: str = ""
+  time_start: float = 0.0
+
+
 class ToolStateCompleted(BaseModel):
   status: Literal["completed"] = "completed"
   input: dict[str, Any] = Field(default_factory=dict)
@@ -29,8 +36,17 @@ class ToolStateCompleted(BaseModel):
   time_end: float = 0.0
 
 
+class ToolStateErrored(BaseModel):
+  status: Literal["error"] = "error"
+  input: dict[str, Any] = Field(default_factory=dict)
+  error: str = ""
+  metadata: dict[str, Any] = Field(default_factory=dict)
+  time_start: float = 0.0
+  time_end: float = 0.0
+
+
 ToolState = Annotated[
-  ToolStatePending | ToolStateCompleted,
+  ToolStatePending | ToolStateRunning | ToolStateCompleted | ToolStateErrored,
   Field(discriminator="status"),
 ]
 

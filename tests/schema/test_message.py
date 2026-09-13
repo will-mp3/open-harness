@@ -64,6 +64,7 @@ def test_tool_state_restores_runing_from_status() -> None:
   assert part.state.title == "Read README.md"
   assert part.state.time_start == 10.0
 
+
 def test_tool_state_restores_error_from_status() -> None:
   part = ToolPart.model_validate(
     {
