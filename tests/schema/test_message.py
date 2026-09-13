@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from open_harness.schema.message import (
+  AssistantMessage,
+  Message,
+  ReasoningPart,
+  TextPart,
   ToolPart,
   ToolStateCompleted,
   ToolStateErrored,
@@ -87,3 +91,32 @@ def test_tool_state_restores_error_from_status() -> None:
   assert part.state.metadata == {"file_path": "missing.md"}
   assert part.state.time_start == 10.0
   assert part.state.time_end == 11.0
+
+
+def test_joined_text_skips_empty_and_non_text_parts() -> None:
+  message = Message(
+    info=AssistantMessage(parent_id="msg_x", time_created=0.0, model="m"),
+    parts=[
+      TextPart(text="one"),
+      ReasoningPart(text="internal reasoning"),
+      TextPart(text=""),
+      ToolPart(call_id="call_1", tool="read"),
+      TextPart(text="two"),
+    ],
+  )
+
+  assert message.joined_text() == "one\ntwo"
+
+
+def test_tool_parts_filters_by_type_and_preserves_order() -> None:
+  message = Message(
+    info=AssistantMessage(parent_id="msg_x", time_created=0.0, model="m"),
+    parts=[
+      TextPart(text="hello"),
+      ToolPart(call_id="call_1", tool="read"),
+      ReasoningPart(text="internal reasoning"),
+      ToolPart(call_id="call_2", tool="ls"),
+    ],
+  )
+
+  assert [part.call_id for part in message.tool_parts()] == ["call_1", "call_2"]
