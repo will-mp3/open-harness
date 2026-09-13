@@ -10,6 +10,7 @@ from open_harness.schema.message import (
   ToolStateErrored,
   ToolStatePending,
   ToolStateRunning,
+  UserMessage,
   new_id,
 )
 
@@ -120,3 +121,19 @@ def test_tool_parts_filters_by_type_and_preserves_order() -> None:
   )
 
   assert [part.call_id for part in message.tool_parts()] == ["call_1", "call_2"]
+
+
+def test_user_message_round_trip_preserves_header_and_parts() -> None:
+  original = Message(
+    info=UserMessage(time_created=10.0, model="m"),
+    parts=[TextPart(text="Explain this project")],
+  )
+
+  restored = Message.model_validate_json(original.model_dump_json())
+
+  assert isinstance(restored.info, UserMessage)
+  assert isinstance(restored.parts[0], TextPart)
+  assert restored.info.id == original.info.id
+  assert restored.parts[0].id == original.parts[0].id
+  assert restored == original
+  assert restored.joined_text() == "Explain this project"
