@@ -51,9 +51,47 @@ ToolState = Annotated[
 ]
 
 
+class TextPart(BaseModel):
+  type: Literal["text"] = "text"
+  id: str = Field(default_factory=_part_id)
+  text: str = ""
+  synthetic: bool = False
+
+
+class ReasoningPart(BaseModel):
+  type: Literal["reasoning"] = "reasoning"
+  id: str = Field(default_factory=_part_id)
+  text: str = ""
+
+
 class ToolPart(BaseModel):
   type: Literal["tool"] = "tool"
   id: str = Field(default_factory=_part_id)
   call_id: str
   tool: str
   state: ToolState = Field(default_factory=ToolStatePending)
+
+
+Part = Annotated[
+  TextPart | ReasoningPart | ToolPart,
+  Field(discriminator="type"),
+]
+
+
+class AssistantMessage(BaseModel):
+  id: str = Field(default_factory=lambda: new_id("msg"))
+  role: Literal["assistant"] = "assistant"
+  parent_id: str
+  time_created: float
+  model: str
+
+
+class Message(BaseModel):
+  info: AssistantMessage
+  parts: list[Part] = Field(default_factory=list)
+
+  def joined_text(self) -> str:
+    return "\n".join(part.text for part in self.parts if isinstance(part, TextPart) and part.text)
+
+  def tool_parts(self) -> list[ToolPart]:
+    return [part for part in self.parts if isinstance(part, ToolPart)]
