@@ -78,6 +78,13 @@ Part = Annotated[
 ]
 
 
+class UserMessage(BaseModel):
+  id: str = Field(default_factory=lambda: new_id("msg"))
+  role: Literal["user"] = "user"
+  time_created: float
+  model: str
+
+
 class AssistantMessage(BaseModel):
   id: str = Field(default_factory=lambda: new_id("msg"))
   role: Literal["assistant"] = "assistant"
@@ -86,8 +93,14 @@ class AssistantMessage(BaseModel):
   model: str
 
 
+MessageInfo = Annotated[
+  UserMessage | AssistantMessage,
+  Field(discriminator="role")
+]
+
+
 class Message(BaseModel):
-  info: AssistantMessage
+  info: MessageInfo
   parts: list[Part] = Field(default_factory=list)
 
   def joined_text(self) -> str:
