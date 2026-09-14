@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from open_harness.schema.session import Session
-
 from open_harness.schema.events import Usage
 from open_harness.schema.message import (
   AssistantMessage,
@@ -19,6 +17,7 @@ from open_harness.schema.message import (
   UserMessage,
   new_id,
 )
+from open_harness.schema.session import Session
 
 
 def test_ids_are_prefixed_and_sort_chronologically() -> None:
