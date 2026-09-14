@@ -165,3 +165,49 @@ def test_step_finish_round_trip_preserves_usage_and_cost() -> None:
   assert finish.cost == 0.01
   assert restored == original
   assert restored.joined_text() == "Done"
+
+
+def test_assistant_completion_details_survive_round_trip() -> None:
+  original = Message(
+    info=AssistantMessage(
+      parent_id="msg_x",
+      time_created=10.0,
+      time_completed=12.0,
+      model="m",
+      cost=0.01,
+      tokens=Usage(input_tokens=10, output_tokens=5, total_tokens=15),
+      finish="stop",
+    ),
+  )
+
+  restored = Message.model_validate_json(original.model_dump_json())
+
+  assert isinstance(restored.info, AssistantMessage)
+  assert restored.info.time_completed == 12.0
+  assert restored.info.cost == 0.01
+  assert restored.info.tokens.input_tokens == 10
+  assert restored.info.tokens.output_tokens == 5
+  assert restored.info.tokens.total_tokens == 15
+  assert restored.info.finish == "stop"
+  assert restored.info.error is None
+  assert restored == original
+
+
+def test_assistant_error_survives_round_trip() -> None:
+  header = AssistantMessage.model_validate(
+    {
+      "parent_id": "msg_x",
+      "time_created": 10.0,
+      "model": "m",
+      "error": {
+        "kind": "aborted",
+        "message": "Cancelled by user",
+      },
+    }
+  )
+
+  restored = AssistantMessage.model_validate_json(header.model_dump_json())
+
+  assert restored.error is not None
+  assert restored.error.kind == "aborted"
+  assert restored.error.message == "Cancelled by user"
