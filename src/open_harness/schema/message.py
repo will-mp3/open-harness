@@ -93,10 +93,7 @@ class AssistantMessage(BaseModel):
   model: str
 
 
-MessageInfo = Annotated[
-  UserMessage | AssistantMessage,
-  Field(discriminator="role")
-]
+MessageInfo = Annotated[UserMessage | AssistantMessage, Field(discriminator="role")]
 
 
 class Message(BaseModel):

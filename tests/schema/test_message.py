@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from open_harness.schema.events import Usage
 from open_harness.schema.message import (
   AssistantMessage,
   Message,
   ReasoningPart,
+  StepFinishPart,
   TextPart,
   ToolPart,
   ToolStateCompleted,
@@ -137,3 +139,28 @@ def test_user_message_round_trip_preserves_header_and_parts() -> None:
   assert restored.parts[0].id == original.parts[0].id
   assert restored == original
   assert restored.joined_text() == "Explain this project"
+
+def test_step_finish_round_trip_preserves_usage_and_cost() -> None:
+  original = Message(
+    info=AssistantMessage(parent_id="msg_x", time_created=0.0, model="m"),
+    parts=[
+      TextPart(text="Done"),
+      StepFinishPart(
+        reason="stop",
+        usage=Usage(input_tokens=10, output_tokens=5, total_tokens=15),
+        cost=0.01,
+      ),
+    ],
+  )
+
+  restored = Message.model_validate_json(original.model_dump_json())
+  finish = restored.parts[1]
+
+  assert isinstance(finish, StepFinishPart)
+  assert finish.reason == "stop"
+  assert finish.usage.input_tokens == 10
+  assert finish.usage.output_tokens == 5
+  assert finish.usage.total_tokens == 15
+  assert finish.cost == 0.01
+  assert restored == original
+  assert restored.joined_text() == "Done"
