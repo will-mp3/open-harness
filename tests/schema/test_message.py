@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from open_harness.schema.session import Session
+
 from open_harness.schema.events import Usage
 from open_harness.schema.message import (
   AssistantMessage,
@@ -211,3 +215,24 @@ def test_assistant_error_survives_round_trip() -> None:
   assert restored.error is not None
   assert restored.error.kind == "aborted"
   assert restored.error.message == "Cancelled by user"
+
+
+def test_session_preserves_order_and_finds_latest_assistant(tmp_path: Path) -> None:
+  session = Session.create(cwd=tmp_path, project_root=tmp_path, model="m")
+
+  assert session.id.startswith("ses_")
+  assert session.last_assistant() is None
+
+  user = Message(info=UserMessage(time_created=0.0, model="m"))
+  assert session.append(user) is user
+  assert session.last_assistant() is None
+
+  first = Message(info=AssistantMessage(parent_id=user.info.id, time_created=1.0, model="m"))
+  latest = Message(info=AssistantMessage(parent_id=user.info.id, time_created=2.0, model="m"))
+  follow_up = Message(info=UserMessage(time_created=3.0, model="m"))
+
+  for message in (first, latest, follow_up):
+    assert session.append(message) is message
+
+  assert session.messages == [user, first, latest, follow_up]
+  assert session.last_assistant() is latest
