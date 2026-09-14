@@ -5,6 +5,8 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 from ulid import ULID
 
+from open_harness.schema.events import Usage
+
 
 def new_id(prefix: str) -> str:
   return f"{prefix}_{ULID()}"
@@ -72,8 +74,16 @@ class ToolPart(BaseModel):
   state: ToolState = Field(default_factory=ToolStatePending)
 
 
+class StepFinishPart(BaseModel):
+  type: Literal["step-finish"] = "step-finish"
+  id: str = Field(default_factory=_part_id)
+  reason: str = "stop"
+  usage: Usage = Field(default_factory=Usage)
+  cost: float = 0.0
+
+
 Part = Annotated[
-  TextPart | ReasoningPart | ToolPart,
+  TextPart | ReasoningPart | ToolPart | StepFinishPart,
   Field(discriminator="type"),
 ]
 

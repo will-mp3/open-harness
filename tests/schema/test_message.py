@@ -140,6 +140,7 @@ def test_user_message_round_trip_preserves_header_and_parts() -> None:
   assert restored == original
   assert restored.joined_text() == "Explain this project"
 
+
 def test_step_finish_round_trip_preserves_usage_and_cost() -> None:
   original = Message(
     info=AssistantMessage(parent_id="msg_x", time_created=0.0, model="m"),
