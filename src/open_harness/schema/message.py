@@ -88,6 +88,11 @@ Part = Annotated[
 ]
 
 
+class AssistantError(BaseModel):
+  kind: Literal["api", "aborted", "step_cap", "unknown"]
+  message: str
+
+
 class UserMessage(BaseModel):
   id: str = Field(default_factory=lambda: new_id("msg"))
   role: Literal["user"] = "user"
@@ -100,7 +105,12 @@ class AssistantMessage(BaseModel):
   role: Literal["assistant"] = "assistant"
   parent_id: str
   time_created: float
+  time_completed: float | None = None
   model: str
+  cost: float = 0.0
+  tokens: Usage = Field(default_factory=Usage)
+  finish: str | None = None
+  error: AssistantError | None = None
 
 
 MessageInfo = Annotated[UserMessage | AssistantMessage, Field(discriminator="role")]
