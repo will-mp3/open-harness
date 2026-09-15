@@ -118,7 +118,7 @@ MessageInfo = Annotated[UserMessage | AssistantMessage, Field(discriminator="rol
 
 class Message(BaseModel):
   info: MessageInfo
-  parts: list[Part] = Field(default_factory=list)
+  parts: list[Part] = Field(default_factory=list[Part])
 
   def joined_text(self) -> str:
     return "\n".join(part.text for part in self.parts if isinstance(part, TextPart) and part.text)

@@ -25,7 +25,7 @@ class Session(BaseModel):
   project_root: Path
   model: str
   time_created: float = Field(default_factory=time.time)
-  messages: list[Message] = Field(default_factory=list)
+  messages: list[Message] = Field(default_factory=list[Message])
 
   @classmethod
   def create(cls, *, cwd: Path, project_root: Path, model: str) -> Session:
