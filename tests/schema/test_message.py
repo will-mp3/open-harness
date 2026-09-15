@@ -17,7 +17,7 @@ from open_harness.schema.message import (
   UserMessage,
   new_id,
 )
-from open_harness.schema.session import Session
+from open_harness.schema.session import Session, find_project_root
 
 
 def test_ids_are_prefixed_and_sort_chronologically() -> None:
@@ -235,3 +235,38 @@ def test_session_preserves_order_and_finds_latest_assistant(tmp_path: Path) -> N
 
   assert session.messages == [user, first, latest, follow_up]
   assert session.last_assistant() is latest
+
+
+def test_find_project_root_finds_git_directory(tmp_path: Path) -> None:
+  (tmp_path / ".git").mkdir()
+  nested = tmp_path / "src" / "package"
+  nested.mkdir(parents=True)
+
+  assert find_project_root(nested) == tmp_path.resolve()
+  assert find_project_root(tmp_path) == tmp_path.resolve()
+
+
+def test_find_project_root_accepts_git_file(tmp_path: Path) -> None:
+  (tmp_path / ".git").write_text("gitdir: ../git-data\n", encoding="utf-8")
+  nested = tmp_path / "src"
+  nested.mkdir()
+
+  assert find_project_root(nested) == tmp_path.resolve()
+
+
+def test_find_project_root_prefers_nearest_marker(tmp_path: Path) -> None:
+  (tmp_path / ".git").mkdir()
+  inner = tmp_path / "inner"
+  inner.mkdir()
+  (inner / ".git").mkdir()
+  nested = inner / "src"
+  nested.mkdir()
+
+  assert find_project_root(nested) == inner.resolve()
+
+
+def test_find_project_root_ralls_back_to_cwd(tmp_path: Path) -> None:
+  nested = tmp_path / "src"
+  nested.mkdir()
+
+  assert find_project_root(nested) == nested.resolve()
