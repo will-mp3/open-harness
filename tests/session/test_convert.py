@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from open_harness.schema.message import (
@@ -7,6 +8,8 @@ from open_harness.schema.message import (
   Message,
   Part,
   TextPart,
+  ToolPart,
+  ToolStateCompleted,
   UserMessage,
 )
 from open_harness.schema.session import Session
@@ -40,3 +43,43 @@ def test_text_only_turn(tmp_path: Path) -> None:
     {"role": "user", "content": "hi"},
     {"role": "assistant", "content": "hello"},
   ]
+
+def test_one_tool_call_emits_assistant_then_tool_message(tmp_path: Path) -> None:
+  session = _session(tmp_path)
+  session.append(_user("read it"))
+  session.append(
+    _assistant(
+      [
+        ToolPart(
+          call_id="call_1",
+          tool="read",
+          state=ToolStateCompleted(
+            input={"file_path": "a.py"},
+            output="contents",
+          ),
+        ),
+      ]
+    )
+  )
+
+  messages = to_model_messages(session)
+
+  assert len(messages) == 3
+  assert messages[0] == {"role": "user", "content": "read it"}
+
+  assistant = messages[1]
+  assert assistant["role"] == "assistant"
+  assert assistant["content"] is None
+  assert len(assistant["tool_calls"]) == 1
+
+  call = assistant["tool_calls"][0]
+  assert call["id"] == "call_1"
+  assert call["type"] == "function"
+  assert call["function"]["name"] == "read"
+  assert json.loads(call["function"]["arguments"]) == {"file_path": "a.py"}
+
+  assert messages[2] == {
+    "role": "tool",
+    "tool_call_id": "call_1",
+    "content": "contents",
+  }
