@@ -44,6 +44,7 @@ def test_text_only_turn(tmp_path: Path) -> None:
     {"role": "assistant", "content": "hello"},
   ]
 
+
 def test_one_tool_call_emits_assistant_then_tool_message(tmp_path: Path) -> None:
   session = _session(tmp_path)
   session.append(_user("read it"))
