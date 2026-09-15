@@ -8,6 +8,17 @@ from pydantic import BaseModel, Field
 from open_harness.schema.message import AssistantMessage, Message, new_id
 
 
+def find_project_root(cwd: Path) -> Path:
+  """Find the nearest .git marker, falling back to the resolved cwd."""
+  current = cwd.resolve()
+
+  for candidate in (current, *current.parents):
+    if (candidate / ".git").exists():
+      return candidate
+
+  return current
+
+
 class Session(BaseModel):
   id: str = Field(default_factory=lambda: new_id("ses"))
   cwd: Path
