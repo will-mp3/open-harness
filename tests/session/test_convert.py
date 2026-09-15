@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from open_harness.session.convert import to_model_messages
-
 from open_harness.schema.message import (
   AssistantMessage,
   Message,
@@ -12,6 +10,7 @@ from open_harness.schema.message import (
   UserMessage,
 )
 from open_harness.schema.session import Session
+from open_harness.session.convert import to_model_messages
 
 
 def _session(tmp_path: Path) -> Session:
