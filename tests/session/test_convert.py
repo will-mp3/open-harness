@@ -3,13 +3,19 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from open_harness.schema.message import (
   AssistantMessage,
   Message,
   Part,
   TextPart,
   ToolPart,
+  ToolState,
   ToolStateCompleted,
+  ToolStateErrored,
+  ToolStatePending,
+  ToolStateRunning,
   UserMessage,
 )
 from open_harness.schema.session import Session
@@ -84,3 +90,62 @@ def test_one_tool_call_emits_assistant_then_tool_message(tmp_path: Path) -> None
     "tool_call_id": "call_1",
     "content": "contents",
   }
+
+
+@pytest.mark.parametrize(
+  ("state", "expected_input", "expected_content"),
+  [
+    pytest.param(
+      ToolStatePending(raw=f"{'file_path':}"),
+      {},
+      "Tool call was interrupted and did not complete.",
+      id="pending",
+    ),
+    pytest.param(
+      ToolStateRunning(input={"file_path": "a.py"}),
+      {"file_path": "a.py"},
+      "Tool call was interrupted and did not complete.",
+      id="running",
+    ),
+    pytest.param(
+      ToolStateErrored(
+        input={"file_path": "a.py"},
+        error="File not found: a.py",
+      ),
+      {"file_path": "a.py"},
+      "File not found: a.py",
+      id="errored",
+    ),
+  ],
+)
+def test_noncompleted_tool_call_keeps_matching_result(
+  tmp_path: Path,
+  state: ToolState,
+  expected_input: dict[str, str],
+  expected_content: str,
+) -> None:
+  session = _session(tmp_path)
+  session.append(_user("read it"))
+  session.append(_assistant([ToolPart(call_id="call_1", tool="read", state=state)]))
+  before = session.model_dump()
+
+  messages = to_model_messages(session)
+
+  assert len(messages) == 3
+  assistant = messages[1]
+  assert assistant["role"] == "assistant"
+  assert assistant["content"] is None
+  assert len(assistant["tool_calls"]) == 1
+
+  call = assistant["tool_calls"][0]
+  assert call["id"] == "call_1"
+  assert call["type"] == "function"
+  assert call["function"]["name"] == "read"
+  assert json.loads(call["function"]["arguments"]) == expected_input
+
+  assert messages[2] == {
+    "role": "tool",
+    "tool_call_id": "call_1",
+    "content": expected_content,
+  }
+  assert session.model_dump() == before
