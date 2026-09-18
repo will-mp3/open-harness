@@ -241,3 +241,11 @@ def test_multiple_calls_keep_results_before_the_next_message(tmp_path: Path) -> 
     },
     {"role": "user", "content": "What did you find?"},
   ]
+
+
+def test_empty_user_message_is_omitted(tmp_path: Path) -> None:
+  session = _session(tmp_path)
+  session.append(_user(""))
+  session.append(_user("hi"))
+
+  assert to_model_messages(session) == [{"role": "user", "content": "hi"}]
