@@ -9,6 +9,8 @@ from open_harness.schema.message import (
   AssistantMessage,
   Message,
   Part,
+  ReasoningPart,
+  StepFinishPart,
   TextPart,
   ToolPart,
   ToolState,
@@ -149,3 +151,25 @@ def test_noncompleted_tool_call_keeps_matching_result(
     "content": expected_content,
   }
   assert session.model_dump() == before
+
+
+@pytest.mark.parametrize(
+  "parts",
+  [
+    pytest.param([], id="no-parts"),
+    pytest.param([TextPart(text="")], id="empty-text"),
+    pytest.param([ReasoningPart(text="Internal reasoning")], id="reasoning-only"),
+    pytest.param([StepFinishPart()], id="step-finish-only"),
+  ],
+)
+def test_assistant_without_replayable_content_is_omitted(
+  tmp_path: Path,
+  parts: list[Part],
+) -> None:
+  session = _session(tmp_path)
+  session.append(_user("hi"))
+  session.append(_assistant(parts))
+
+  assert to_model_messages(session) == [
+    {"role": "user", "content": "hi"},
+  ]
