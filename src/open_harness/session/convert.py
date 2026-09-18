@@ -40,7 +40,8 @@ def to_model_messages(session: Session) -> list[ModelMessage]:
     text = message.joined_text()
 
     if isinstance(message.info, UserMessage):
-      messages.append({"role": "user", "content": text})
+      if text:
+        messages.append({"role": "user", "content": text})
       continue
 
     tool_parts = message.tool_parts()
