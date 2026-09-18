@@ -173,3 +173,71 @@ def test_assistant_without_replayable_content_is_omitted(
   assert to_model_messages(session) == [
     {"role": "user", "content": "hi"},
   ]
+
+
+def test_internal_parts_are_omitted_from_visible_text(tmp_path: Path) -> None:
+  session = _session(tmp_path)
+  session.append(
+    _assistant(
+      [
+        TextPart(text="First"),
+        ReasoningPart(text="Internal reasoning"),
+        TextPart(text=""),
+        StepFinishPart(),
+        TextPart(text="Second"),
+      ]
+    )
+  )
+
+  assert to_model_messages(session) == [
+    {"role": "assistant", "content": "First\nSecond"},
+  ]
+
+
+def test_multiple_calls_keep_results_before_the_next_message(tmp_path: Path) -> None:
+  session = _session(tmp_path)
+  session.append(
+    _assistant(
+      [
+        TextPart(text="Reading both files."),
+        ToolPart(
+          call_id="call_b",
+          tool="read",
+          state=ToolStateCompleted(
+            input={"file_path": "b.py"},
+            output="Contents of b.py",
+          ),
+        ),
+        ToolPart(
+          call_id="call_a",
+          tool="read",
+          state=ToolStatePending(),
+        ),
+      ]
+    )
+  )
+  session.append(_user("What did you find?"))
+
+  messages = to_model_messages(session)
+
+  assert len(messages) == 4
+  assistant = messages[0]
+  assert assistant["role"] == "assistant"
+  assert assistant["content"] == "Reading both files."
+  assert [call["id"] for call in assistant["tool_calls"]] == [
+    "call_b",
+    "call_a",
+  ]
+  assert messages[1:] == [
+    {
+      "role": "tool",
+      "tool_call_id": "call_b",
+      "content": "Contents of b.py",
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_a",
+      "content": "Tool call was interrupted and did not complete.",
+    },
+    {"role": "user", "content": "What did you find?"},
+  ]
