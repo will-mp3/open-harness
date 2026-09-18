@@ -3,9 +3,34 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from open_harness.schema.message import ToolStateCompleted, UserMessage
+from open_harness.schema.message import (
+  ToolPart,
+  ToolStateCompleted,
+  ToolStateErrored,
+  ToolStateRunning,
+  UserMessage,
+)
 from open_harness.schema.request import ModelMessage
 from open_harness.schema.session import Session
+
+INTERRUPTED_RESULT = "Tool call was interrupted and did not complete."
+
+
+def _tool_input(part: ToolPart) -> dict[str, Any]:
+  state = part.state
+  if isinstance(state, ToolStateRunning | ToolStateCompleted | ToolStateErrored):
+    return state.input
+  return {}
+
+
+def _tool_content(part: ToolPart) -> str:
+  state = part.state
+  if isinstance(state, ToolStateCompleted):
+    return state.output
+  if isinstance(state, ToolStateErrored):
+    return state.error
+
+  return INTERRUPTED_RESULT
 
 
 def to_model_messages(session: Session) -> list[ModelMessage]:
@@ -22,22 +47,23 @@ def to_model_messages(session: Session) -> list[ModelMessage]:
     tool_results: list[ModelMessage] = []
 
     for part in message.tool_parts():
-      state = part.state
-      if isinstance(state, ToolStateCompleted):
-        tool_calls.append(
-          {
-            "id": part.call_id,
-            "type": "function",
-            "function": {"name": part.tool, "arguments": json.dumps(state.input)},
-          }
-        )
-        tool_results.append(
-          {
-            "role": "tool",
-            "tool_call_id": part.call_id,
-            "content": state.output,
-          }
-        )
+      tool_calls.append(
+        {
+          "id": part.call_id,
+          "type": "function",
+          "function": {
+            "name": part.tool,
+            "arguments": json.dumps(_tool_input(part)),
+          },
+        }
+      )
+      tool_results.append(
+        {
+          "role": "tool",
+          "tool_call_id": part.call_id,
+          "content": _tool_content(part),
+        }
+      )
 
     assistant: ModelMessage = {
       "role": "assistant",

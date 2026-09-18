@@ -96,7 +96,7 @@ def test_one_tool_call_emits_assistant_then_tool_message(tmp_path: Path) -> None
   ("state", "expected_input", "expected_content"),
   [
     pytest.param(
-      ToolStatePending(raw=f"{'file_path':}"),
+      ToolStatePending(raw='{"file_path":'),
       {},
       "Tool call was interrupted and did not complete.",
       id="pending",
