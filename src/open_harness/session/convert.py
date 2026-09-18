@@ -43,10 +43,14 @@ def to_model_messages(session: Session) -> list[ModelMessage]:
       messages.append({"role": "user", "content": text})
       continue
 
+    tool_parts = message.tool_parts()
+    if not text and not tool_parts:
+      continue
+
     tool_calls: list[dict[str, Any]] = []
     tool_results: list[ModelMessage] = []
 
-    for part in message.tool_parts():
+    for part in tool_parts:
       tool_calls.append(
         {
           "id": part.call_id,
