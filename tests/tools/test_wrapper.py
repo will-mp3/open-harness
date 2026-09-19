@@ -135,3 +135,28 @@ async def test_long_output_is_truncated_and_flagged(tmp_path: Path) -> None:
 
   assert result.metadata["truncated"] is True
   assert "output_path" in result.metadata
+
+
+async def test_long_failure_output_is_truncated(tmp_path: Path) -> None:
+  class _LongFailingTool(_EchoTool):
+    async def execute(self, args: _Params, ctx: ToolContext) -> ToolResult:
+      raise ToolFailure("x" * 500)
+
+  result = await execute_tool(
+    _LongFailingTool(),
+    {"value": 1},
+    _ctx(tmp_path),
+    max_lines=1000,
+    max_bytes=100,
+    spill_dir=tmp_path,
+  )
+
+  assert result.metadata["failed"] is True
+  assert result.metadata.get("truncated") is True
+
+  output_path = result.metadata["output_path"]
+  assert isinstance(output_path, str)
+  assert Path(output_path).read_text(encoding="utf-8") == "x" * 500
+
+  preview = result.output.split("\n\nFull output written to ", 1)[0]
+  assert len(preview.encode("utf-8")) <= 100
