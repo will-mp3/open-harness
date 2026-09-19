@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from open_harness.tool.registry import ToolRegistry, normalize_schema
+from open_harness.tools.registry import ToolRegistry, normalize_schema
 from open_harness.tools.base import ToolContext, ToolResult
 from pydantic import BaseModel, Field
 
