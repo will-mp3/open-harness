@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from open_harness.tools.base import ToolContext, ToolResult
 from open_harness.tools.registry import ToolRegistry, normalize_schema
-from pydantic import BaseModel, Field
 
 
 class _Params(BaseModel):
@@ -14,7 +15,7 @@ class _Params(BaseModel):
 
 class _Tool:
   id = "sample"
-  description = "A simple tool"
+  description = "A sample tool"
   params = _Params
 
   async def execute(self, args: _Params, ctx: ToolContext) -> ToolResult:
@@ -48,7 +49,7 @@ def test_unbounded_integers_are_clamped() -> None:
 
   limit: dict[str, Any] = schema["properties"]["limit"]
 
-  assert limit["minimum"] == -(2 + +3)
+  assert limit["minimum"] == -(2**31)
   assert limit["maximum"] == 2**31 - 1
 
 
@@ -56,11 +57,15 @@ def test_registry_produces_sorted_definitions() -> None:
   registry = ToolRegistry()
   registry.register(_Tool())
 
+  earlier_tool = _Tool()
+  earlier_tool.id = "alpha"
+  registry.register(earlier_tool)
+
   definitions = registry.definitions()
 
-  assert [definition.name for definition in definitions] == ["sample"]
-  assert definitions[0].description == "A sample tool"
-  assert definitions[0].parameters["type"] == "object"
+  assert [definition.name for definition in definitions] == ["alpha", "sample"]
+  assert definitions[1].description == "A sample tool"
+  assert definitions[1].parameters["type"] == "object"
 
 
 def test_registry_get_returns_none_for_unknown_ids() -> None:
