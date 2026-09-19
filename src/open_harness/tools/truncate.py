@@ -49,9 +49,7 @@ def truncate(
 
   head = head_text.encode("utf-8")[:head_budget].decode("utf-8", errors="ignore")
   tail = (
-    tail_text.encode("utf-8")[-tail_budget:].decode("utf-8", errors="ignore")
-    if tail_budget
-    else ""
+    tail_text.encode("utf-8")[-tail_budget:].decode("utf-8", errors="ignore") if tail_budget else ""
   )
 
   preview = head + marker + tail
