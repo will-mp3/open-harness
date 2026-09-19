@@ -31,13 +31,30 @@ def truncate(
   path = spill_dir / f"{new_id('tool')}.txt"
   path.write_text(text, encoding="utf-8")
 
-  half = max(max_lines // 2, 1)
-  head = lines[:half]
-  tail = lines[-half:] if len(lines) > half else []
+  if len(lines) > max_lines:
+    head_count = (max_lines + 1) // 2
+    tail_count = max_lines // 2
+    head_text = "\n".join(lines[:head_count])
+    tail_text = "\n".join(lines[-tail_count:]) if tail_count else ""
+  else:
+    head_text = text
+    tail_text = text
 
-  marker = f"... output truncated: {len(lines)} lines, {len(encoded)} bytes ..."
-  preview = "\n".join([*head, "", marker, "", *tail])
-  preview = preview.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+  marker = f"\n\n... output truncated: {len(lines)} lines, {len(encoded)} bytes ...\n\n"
+  marker = marker[:max_bytes]
+
+  remaining_bytes = max_bytes - len(marker.encode("utf-8"))
+  head_budget = (remaining_bytes + 1) // 2
+  tail_budget = remaining_bytes // 2
+
+  head = head_text.encode("utf-8")[:head_budget].decode("utf-8", errors="ignore")
+  tail = (
+    tail_text.encode("utf-8")[-tail_budget:].decode("utf-8", errors="ignore")
+    if tail_budget
+    else ""
+  )
+
+  preview = head + marker + tail
 
   hint = (
     f"\n\nFull output written to {path}. "
