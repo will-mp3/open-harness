@@ -87,7 +87,7 @@ async def test_invalid_argumens_return_a_rewrite_instruction_rather_than_raising
     {"value": "not an int"},
     _ctx(tmp_path),
     max_lines=100,
-    max_bytes=100,
+    max_bytes=1000,
     spill_dir=tmp_path,
   )
 
