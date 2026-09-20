@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from open_harness.tools.base import (
   PermissionDenied,
   ToolContext,
@@ -10,7 +12,6 @@ from open_harness.tools.base import (
   ToolResult,
 )
 from open_harness.tools.wrapper import execute_tool
-from pydantic import BaseModel
 
 
 class _Params(BaseModel):

@@ -36,33 +36,33 @@ async def execute_tool(
   max_bytes: int,
   spill_dir: Path,
 ) -> ToolResult:
-  """Validate arguments, execute the tool, and cap successful output."""
+  """Validate arguments, execute the tool, and cap model-facing output."""
   try:
     args = tool.params.model_validate(raw_args)
   except ValidationError as exc:
-    return ToolResult(
+    result = ToolResult(
       title=f"{tool.id} (invalid arguments)",
       output=INVALID_ARGUMENTS_TEMPLATE.format(
         tool=tool.id,
         detail=_format_validation_error(exc),
       ),
-      metadata={"invalid_arguments": True}
+      metadata={"invalid_arguments": True},
     )
-
-  try:
-    result = await tool.execute(args, ctx)
-  except PermissionDenied as exc:
-    return ToolResult(
-      title=f"{tool.id} (denied)",
-      output=str(exc),
-      metadata={"denied": True},
-    )
-  except ToolFailure as exc:
-    return ToolResult(
-      title=f"{tool.id} (failed)",
-      output=str(exc),
-      metadata={"failed": True},
-    )
+  else:
+    try:
+      result = await tool.execute(args, ctx)
+    except PermissionDenied as exc:
+      result = ToolResult(
+        title=f"{tool.id} (denied)",
+        output=str(exc),
+        metadata={"denied": True},
+      )
+    except ToolFailure as exc:
+      result = ToolResult(
+        title=f"{tool.id} (failed)",
+        output=str(exc),
+        metadata={"failed": True},
+      )
 
   capped = truncate(
     result.output,
