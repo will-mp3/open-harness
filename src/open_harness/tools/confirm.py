@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fnmatch import fnmatchcase
 from typing import Any, Literal, Protocol
 
 from open_harness.tools.base import PermissionDenied
@@ -16,6 +17,12 @@ class ConfirmGate:
     self._prompt = prompt
     self._approved: set[tuple[str, str]] = set()
 
+  def _is_approved(self, permission: str, pattern: str) -> bool:
+    return any(
+      permission == approved_permission and fnmatchcase(pattern, approved_pattern)
+      for approved_permission, approved_pattern in self._approved
+    )
+
   async def ask(
     self,
     *,
@@ -24,7 +31,7 @@ class ConfirmGate:
     metadata: dict[str, Any],
     always: list[str] | None = None,
   ) -> None:
-    if patterns and all((permission, pattern) in self._approved for pattern in patterns):
+    if patterns and all(self._is_approved(permission, pattern) for pattern in patterns):
       return
 
     decision = await self._prompt(
