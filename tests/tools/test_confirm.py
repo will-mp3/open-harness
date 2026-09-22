@@ -104,3 +104,46 @@ async def test_approval_does_not_leak_into_a_new_gate() -> None:
     await second_gate.ask(permission="edit", patterns=["a.py"], metadata={})
 
   assert len(prompt.calls) == 2
+
+
+async def test_auto_approve_never_prompts() -> None:
+  prompt = _ScriptedPrompt([])
+  gate = ConfirmGate(prompt, auto_approve=True)
+
+  await gate.ask(
+    permission="bash",
+    patterns=["git status --short"],
+    metadata={},
+  )
+
+  assert prompt.calls == []
+
+
+async def test_details_includes_the_supplied_diff() -> None:
+  prompt = _ScriptedPrompt(["yes"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="edit",
+    patterns=["a.py"],
+    metadata={"diff": "- old\n+ new"},
+  )
+
+  assert prompt.calls == [
+    ("edit", "edit: a.py\n\n- old\n+ new"),
+  ]
+
+
+async def test_detail_without_a_diff_shows_permission_and_targets() -> None:
+  prompt = _ScriptedPrompt(["yes"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="edit",
+    patterns=["a.py", "b.py"],
+    metadata={},
+  )
+
+  assert prompt.calls == [
+    ("edit", "edit: a.py, b.py"),
+  ]
