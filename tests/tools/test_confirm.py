@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from open_harness.tools.confirm import ConfirmGate, Decision
 
 from open_harness.tools.base import PermissionDenied
+from open_harness.tools.confirm import ConfirmGate, Decision
 
 
 class _ScriptedPrompt:
