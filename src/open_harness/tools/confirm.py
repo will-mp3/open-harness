@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from fnmatch import fnmatchcase
 from typing import Any, Literal, Protocol
 
@@ -7,9 +8,59 @@ from open_harness.tools.base import PermissionDenied
 
 Decision = Literal["yes", "no", "always"]
 
+_ARITY: dict[str, int] = {
+  "git": 2,
+  "npm": 2,
+  "pnpm": 2,
+  "yarn": 2,
+  "uv": 2,
+  "cargo": 2,
+  "docker": 2,
+  "kubectl": 2,
+  "brew": 2,
+  "ruff": 2,
+  "pip": 2,
+}
+
+_NESTED_ARITY: dict[tuple[str, str], int] = {
+  ("npm", "run"): 3,
+  ("pnpm", "run"): 3,
+  ("yarn", "run"): 3,
+  ("uv", "run"): 3,
+  ("cargo", "run"): 3,
+}
+
+_GIT_VALUE_OPTIONS = {"-c", "-C"}
+
 
 class PromptFn(Protocol):
   async def __call__(self, *, permission: str, detail: str) -> Decision: ...
+
+
+def bash_prefix(command: str) -> str:
+  try:
+    tokens = shlex.split(command)
+  except ValueError:
+    tokens = command.split()
+
+  if not tokens:
+    return command
+
+  words = [tokens[0]]
+  remaining = iter(tokens[1:])
+
+  for token in remaining:
+    if token.startswith("-"):
+      if words == ["git"] and token in _GIT_VALUE_OPTIONS:
+        next(remaining, None)
+      continue
+    words.append(token)
+
+  depth = _ARITY.get(words[0], 1)
+  if len(words) >= 2:
+    depth = _NESTED_ARITY.get((words[0], words[1]), depth)
+
+  return " ".join(words[:depth]) + " *"
 
 
 class ConfirmGate:
