@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from open_harness.tools.base import PermissionDenied
-from open_harness.tools.confirm import ConfirmGate, Decision
+from open_harness.tools.confirm import ConfirmGate, Decision, bash_prefix
 
 
 class _ScriptedPrompt:
@@ -147,3 +147,19 @@ async def test_detail_without_a_diff_shows_permission_and_targets() -> None:
   assert prompt.calls == [
     ("edit", "edit: a.py, b.py"),
   ]
+
+
+@pytest.mark.parametrize(
+  ("command", "expected"),
+  [
+    ("git status --short", "git status *"),
+    ("git diff HEAD", "git diff *"),
+    ("npm run build", "npm run build *"),
+    ("uv run pytest -q", "uv run pytest *"),
+    ("ls -la", "ls *"),
+    ("git -c core.pager=cat status", "git status *"),
+    ("echo 'unterminated", "echo *"),
+  ],
+)
+def test_bash_prefix(command: str, expected: str) -> None:
+  assert bash_prefix(command) == expected
