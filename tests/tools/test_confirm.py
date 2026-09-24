@@ -163,3 +163,46 @@ async def test_detail_without_a_diff_shows_permission_and_targets() -> None:
 )
 def test_bash_prefix(command: str, expected: str) -> None:
   assert bash_prefix(command) == expected
+
+
+@pytest.mark.parametrize("command", ["git status", "git status --branch"])
+async def test_generated_prefix_covers_the_command_and_its_arguments(
+  command: str,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "yes"])
+  gate = ConfirmGate(prompt)
+  original = "git status --short"
+
+  await gate.ask(
+    permission="bash",
+    patterns=[original],
+    metadata={},
+    always=[bash_prefix(original)],
+  )
+  await gate.ask(permission="bash", patterns=[command], metadata={})
+
+  assert len(prompt.calls) == 1
+
+
+@pytest.mark.parametrize(
+  "command",
+  ["git diff HEAD", "git status-other --short"],
+)
+async def test_generated_prefix_does_not_cover_other_subcommands(
+  command: str,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+  original = "git status --short"
+
+  await gate.ask(
+    permission="bash",
+    patterns=[original],
+    metadata={},
+    always=[bash_prefix(original)],
+  )
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(permission="bash", patterns=[command], metadata={})
+
+  assert len(prompt.calls) == 2
