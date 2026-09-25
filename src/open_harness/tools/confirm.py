@@ -70,10 +70,21 @@ class ConfirmGate:
     self._approved: set[tuple[str, str]] = set()
 
   def _is_approved(self, permission: str, pattern: str) -> bool:
-    return any(
-      permission == approved_permission and fnmatchcase(pattern, approved_pattern)
-      for approved_permission, approved_pattern in self._approved
-    )
+    for approved_permission, approved_pattern in self._approved:
+      if permission != approved_permission:
+        continue
+
+      if fnmatchcase(pattern, approved_pattern):
+        return True
+
+      if (
+        permission == "bash"
+        and approved_pattern.endswith(" *")
+        and pattern == approved_pattern[:-2]
+      ):
+        return True
+
+    return False
 
   @staticmethod
   def _detail(
