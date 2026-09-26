@@ -206,3 +206,55 @@ async def test_generated_prefix_does_not_cover_other_subcommands(
     await gate.ask(permission="bash", patterns=[command], metadata={})
 
   assert len(prompt.calls) == 2
+
+
+@pytest.mark.parametrize(
+  "command",
+  [
+    "git status --short; echo unexpected",
+    "git status $(echo unexpected)",
+    "git status > unrelated.txt",
+  ],
+)
+async def test_bash_prefix_does_not_approve_additional_shell_effects(
+  command: str,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+  original = "git status --short"
+
+  await gate.ask(
+    permission="bash",
+    patterns=[original],
+    metadata={},
+    always=[bash_prefix(original)],
+  )
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(permission="bash", patterns=[command], metadata={})
+
+  assert len(prompt.calls) == 2
+
+
+@pytest.mark.parametrize(
+  "command",
+  [
+    "git -c core.pager=cat status",
+    'npm run "build:web"',
+  ],
+)
+async def test_always_covers_the_identical_original_command(
+  command: str,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "yes"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="bash",
+    patterns=[command],
+    metadata={},
+    always=[bash_prefix(command)],
+  )
+  await gate.ask(permission="bash", patterns=[command], metadata={})
+
+  assert len(prompt.calls) == 1
