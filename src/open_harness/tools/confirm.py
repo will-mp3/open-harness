@@ -31,6 +31,7 @@ _NESTED_ARITY: dict[tuple[str, str], int] = {
 }
 
 _GIT_VALUE_OPTIONS = {"-c", "-C"}
+_SHELL_SYNTAX = frozenset(";&|<>$`()\n\r")
 
 
 class PromptFn(Protocol):
@@ -70,6 +71,9 @@ class ConfirmGate:
     self._approved: set[tuple[str, str]] = set()
 
   def _is_approved(self, permission: str, pattern: str) -> bool:
+    if permission == "bash" and any(char in _SHELL_SYNTAX for char in pattern):
+      return False
+
     for approved_permission, approved_pattern in self._approved:
       if permission != approved_permission:
         continue
