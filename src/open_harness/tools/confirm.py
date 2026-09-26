@@ -61,7 +61,9 @@ def bash_prefix(command: str) -> str:
   if len(words) >= 2:
     depth = _NESTED_ARITY.get((words[0], words[1]), depth)
 
-  return " ".join(words[:depth]) + " *"
+  prefix = " ".join(words[:depth])
+  prefix = prefix.replace("[", "[[]").replace("*", "[*]").replace("?", "[?]")
+  return prefix + " *"
 
 
 class ConfirmGate:

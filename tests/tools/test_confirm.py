@@ -266,6 +266,7 @@ async def test_always_covers_the_identical_original_command(
     ('npm run "build:*"', "npm run build:deploy -- --production"),
     ('npm run "build?"', "npm run buildx -- --production"),
     ('npm run "build[ab]"', "npm run builda -- --production"),
+    ('npm run "build?"', "npm run build[?]"),
   ],
 )
 async def test_generated_prefix_preserves_literal_script_names(
