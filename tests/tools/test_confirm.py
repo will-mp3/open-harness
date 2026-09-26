@@ -258,3 +258,35 @@ async def test_always_covers_the_identical_original_command(
   await gate.ask(permission="bash", patterns=[command], metadata={})
 
   assert len(prompt.calls) == 1
+
+
+@pytest.mark.parametrize(
+  ("original", "different"),
+  [
+    ('npm run "build:*"', "npm run build:deploy -- --production"),
+    ('npm run "build?"', "npm run buildx -- --production"),
+    ('npm run "build[ab]"', "npm run builda -- --production"),
+  ],
+)
+async def test_generated_prefix_preserves_literal_script_names(
+  original: str,
+  different: str,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="bash",
+    patterns=[original],
+    metadata={},
+    always=[bash_prefix(original)],
+  )
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(
+      permission="bash",
+      patterns=[different],
+      metadata={},
+    )
+
+  assert len(prompt.calls) == 2

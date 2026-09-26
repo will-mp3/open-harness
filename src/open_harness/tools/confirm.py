@@ -69,8 +69,12 @@ class ConfirmGate:
     self._prompt = prompt
     self._auto_approve = auto_approve
     self._approved: set[tuple[str, str]] = set()
+    self._approved_exact: set[tuple[str, str]] = set()
 
   def _is_approved(self, permission: str, pattern: str) -> bool:
+    if (permission, pattern) in self._approved_exact:
+      return True
+
     if permission == "bash" and any(char in _SHELL_SYNTAX for char in pattern):
       return False
 
@@ -125,7 +129,8 @@ class ConfirmGate:
       return
 
     if decision == "always":
-      self._approved.update((permission, pattern) for pattern in always or patterns)
+      self._approved_exact.update((permission, pattern) for pattern in patterns)
+      self._approved.update((permission, pattern) for pattern in always or [])
       return
 
     raise PermissionDenied("The user rejected permission to use this specific tool call.")
