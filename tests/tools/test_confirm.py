@@ -291,3 +291,56 @@ async def test_generated_prefix_preserves_literal_script_names(
     )
 
   assert len(prompt.calls) == 2
+
+
+async def test_exact_mode_ignores_existing_wildcards() -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="demo",
+    patterns=["a"],
+    metadata={},
+    always=["*"],
+  )
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(
+      permission="demo",
+      patterns=["b"],
+      metadata={},
+      match_mode="exact",
+    )
+
+  assert len(prompt.calls) == 2
+
+
+@pytest.mark.parametrize("literal", ["build*", "build?", "build[?]"])
+async def test_exact_approval_is_literal_and_never_saves_scopes(
+  literal: str,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="demo",
+    patterns=[literal],
+    metadata={},
+    always=["*"],
+    match_mode="exact",
+  )
+
+  await gate.ask(
+    permission="demo",
+    patterns=[literal],
+    metadata={},
+  )
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(
+      permission="demo",
+      patterns=["buildx"],
+      metadata={},
+    )
+
+  assert len(prompt.calls) == 2
