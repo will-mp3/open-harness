@@ -36,14 +36,39 @@ async def test_no_raises_permission_denied() -> None:
   assert len(prompt.calls) == 1
 
 
-async def test_always_remembers_the_requested_pattern_when_none_supplied() -> None:
+async def test_always_remembers_the_supplied_scope() -> None:
   prompt = _ScriptedPrompt(["always"])
   gate = ConfirmGate(prompt)
 
-  await gate.ask(permission="edit", patterns=["a.py"], metadata={})
+  await gate.ask(
+    permission="edit",
+    patterns=["a.py"],
+    metadata={},
+    always=["a.py"],
+  )
   await gate.ask(permission="edit", patterns=["a.py"], metadata={})
 
   assert len(prompt.calls) == 1
+
+
+@pytest.mark.parametrize("scopes", [None, []])
+async def test_always_without_scopes_remembers_nothing(
+  scopes: list[str] | None,
+) -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="edit",
+    patterns=["a.py"],
+    metadata={},
+    always=scopes,
+  )
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(permission="edit", patterns=["a.py"], metadata={})
+
+  assert len(prompt.calls) == 2
 
 
 async def test_always_remembers_the_supplied_wildcard() -> None:
