@@ -16,6 +16,13 @@ Project specifications and implementation plans live here:
 
 Use the relevant documents there as the project evolves.
 
+## OpenCode reference
+
+- Treat the pinned OpenCode implementation and tests as the design baseline for v1.
+- Adapt that design to this project's Python stack and stated v1 scope. Any behavioral deviation needs a concrete project requirement and the user's agreement.
+- Do not add permission policies, defensive layers, or abstractions beyond the reference merely as precautionary improvements.
+- When a plan or prior agent recommendation conflicts with the reference, inspect the pinned source and correct the plan before presenting implementation code.
+
 ## Load-bearing architecture
 
 - `LLMEvent` is the only contract between the provider client and session layer.
