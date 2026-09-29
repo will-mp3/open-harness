@@ -134,8 +134,8 @@ async def test_approval_does_not_leak_across_permissions() -> None:
   gate = ConfirmGate(prompt)
 
   await gate.ask(
-    permission="edit", 
-    patterns=["a.py"], 
+    permission="edit",
+    patterns=["a.py"],
     metadata={},
     always=["a.py"],
   )
