@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from open_harness.tools.base import PermissionDenied
-from open_harness.tools.confirm import ConfirmGate, Decision, bash_prefix
+from open_harness.tools.confirm import ConfirmGate, Decision
 
 
 class _ScriptedPrompt:
@@ -100,7 +100,7 @@ async def test_only_offered_scopes_are_saved() -> None:
     metadata={},
     always=["other *"],
   )
-  await gate.ask(permission="demo", patterns=["pther item"], metadata={})
+  await gate.ask(permission="demo", patterns=["other item"], metadata={})
 
   assert len(prompt.calls) == 1
 
@@ -133,7 +133,12 @@ async def test_approval_does_not_leak_across_permissions() -> None:
   prompt = _ScriptedPrompt(["always", "no"])
   gate = ConfirmGate(prompt)
 
-  await gate.ask(permission="edit", patterns=["a.py"], metadata={})
+  await gate.ask(
+    permission="edit", 
+    patterns=["a.py"], 
+    metadata={},
+    always=["a.py"],
+  )
 
   with pytest.raises(PermissionDenied):
     await gate.ask(permission="read", patterns=["a.py"], metadata={})
@@ -194,7 +199,7 @@ async def test_details_includes_the_supplied_diff() -> None:
   )
 
   assert prompt.calls == [
-    ("edit", "edit: a.py\n\n- old\n+ new"),
+    ("edit", "edit: a.py\n\ndiff: - old\n+ new\n\nSession scopes: none"),
   ]
 
 
@@ -209,202 +214,63 @@ async def test_detail_without_a_diff_shows_permission_and_targets() -> None:
   )
 
   assert prompt.calls == [
-    ("edit", "edit: a.py, b.py"),
+    ("edit", "edit: a.py, b.py\n\nSession scopes: none"),
   ]
 
 
-@pytest.mark.parametrize(
-  ("command", "expected"),
-  [
-    ("git status --short", "git status *"),
-    ("git diff HEAD", "git diff *"),
-    ("npm run build", "npm run build *"),
-    ("uv run pytest -q", "uv run pytest *"),
-    ("ls -la", "ls *"),
-    ("git -c core.pager=cat status", "git status *"),
-    ("echo 'unterminated", "echo *"),
-  ],
-)
-def test_bash_prefix(command: str, expected: str) -> None:
-  assert bash_prefix(command) == expected
-
-
-@pytest.mark.parametrize("command", ["git status", "git status --branch"])
-async def test_generated_prefix_covers_the_command_and_its_arguments(
-  command: str,
-) -> None:
-  prompt = _ScriptedPrompt(["always", "yes"])
+async def test_permission_rules_use_reference_matching() -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
   gate = ConfirmGate(prompt)
-  original = "git status --short"
+
+  await gate.ask(permission="demo*", patterns=["a"], metadata={}, always=["*"])
+  await gate.ask(permission="demo", patterns=["b"], metadata={})
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(permission="Demo", patterns=["b"], metadata={})
+
+  assert len(prompt.calls) == 2
+
+
+async def test_gate_does_not_interpret_target_syntax() -> None:
+  prompt = _ScriptedPrompt(["always"])
+  gate = ConfirmGate(prompt)
 
   await gate.ask(
     permission="bash",
-    patterns=[original],
+    patterns=["git status"],
     metadata={},
-    always=[bash_prefix(original)],
+    always=["git status *"],
   )
-  await gate.ask(permission="bash", patterns=[command], metadata={})
+  await gate.ask(
+    permission="bash",
+    patterns=["git status > out"],
+    metadata={},
+  )
 
   assert len(prompt.calls) == 1
 
 
-@pytest.mark.parametrize(
-  "command",
-  ["git diff HEAD", "git status-other --short"],
-)
-async def test_generated_prefix_does_not_cover_other_subcommands(
-  command: str,
-) -> None:
-  prompt = _ScriptedPrompt(["always", "no"])
-  gate = ConfirmGate(prompt)
-  original = "git status --short"
-
-  await gate.ask(
-    permission="bash",
-    patterns=[original],
-    metadata={},
-    always=[bash_prefix(original)],
-  )
-
-  with pytest.raises(PermissionDenied):
-    await gate.ask(permission="bash", patterns=[command], metadata={})
-
-  assert len(prompt.calls) == 2
-
-
-@pytest.mark.parametrize(
-  "command",
-  [
-    "git status --short; echo unexpected",
-    "git status $(echo unexpected)",
-    "git status > unrelated.txt",
-  ],
-)
-async def test_bash_prefix_does_not_approve_additional_shell_effects(
-  command: str,
-) -> None:
-  prompt = _ScriptedPrompt(["always", "no"])
-  gate = ConfirmGate(prompt)
-  original = "git status --short"
-
-  await gate.ask(
-    permission="bash",
-    patterns=[original],
-    metadata={},
-    always=[bash_prefix(original)],
-  )
-
-  with pytest.raises(PermissionDenied):
-    await gate.ask(permission="bash", patterns=[command], metadata={})
-
-  assert len(prompt.calls) == 2
-
-
-@pytest.mark.parametrize(
-  "command",
-  [
-    "git -c core.pager=cat status",
-    'npm run "build:web"',
-  ],
-)
-async def test_always_covers_the_identical_original_command(
-  command: str,
-) -> None:
-  prompt = _ScriptedPrompt(["always", "yes"])
-  gate = ConfirmGate(prompt)
-
-  await gate.ask(
-    permission="bash",
-    patterns=[command],
-    metadata={},
-    always=[bash_prefix(command)],
-  )
-  await gate.ask(permission="bash", patterns=[command], metadata={})
-
-  assert len(prompt.calls) == 1
-
-
-@pytest.mark.parametrize(
-  ("original", "different"),
-  [
-    ('npm run "build:*"', "npm run build:deploy -- --production"),
-    ('npm run "build?"', "npm run buildx -- --production"),
-    ('npm run "build[ab]"', "npm run builda -- --production"),
-    ('npm run "build?"', "npm run build[?]"),
-  ],
-)
-async def test_generated_prefix_preserves_literal_script_names(
-  original: str,
-  different: str,
-) -> None:
-  prompt = _ScriptedPrompt(["always", "no"])
-  gate = ConfirmGate(prompt)
-
-  await gate.ask(
-    permission="bash",
-    patterns=[original],
-    metadata={},
-    always=[bash_prefix(original)],
-  )
-
-  with pytest.raises(PermissionDenied):
-    await gate.ask(
-      permission="bash",
-      patterns=[different],
-      metadata={},
-    )
-
-  assert len(prompt.calls) == 2
-
-
-async def test_exact_mode_ignores_existing_wildcards() -> None:
-  prompt = _ScriptedPrompt(["always", "no"])
+async def test_prompt_shows_metadata_and_offered_scopes() -> None:
+  prompt = _ScriptedPrompt(["yes"])
   gate = ConfirmGate(prompt)
 
   await gate.ask(
     permission="demo",
-    patterns=["a"],
-    metadata={},
-    always=["*"],
+    patterns=["first", "second"],
+    metadata={
+      "command": "first; second",
+      "workdir": "/project",
+      "diff": "-old\n+new",
+    },
+    always=["first *", "second *"],
   )
 
-  with pytest.raises(PermissionDenied):
-    await gate.ask(
-      permission="demo",
-      patterns=["b"],
-      metadata={},
-      match_mode="exact",
-    )
-
-  assert len(prompt.calls) == 2
-
-
-@pytest.mark.parametrize("literal", ["build*", "build?", "build[?]"])
-async def test_exact_approval_is_literal_and_never_saves_scopes(
-  literal: str,
-) -> None:
-  prompt = _ScriptedPrompt(["always", "no"])
-  gate = ConfirmGate(prompt)
-
-  await gate.ask(
-    permission="demo",
-    patterns=[literal],
-    metadata={},
-    always=["*"],
-    match_mode="exact",
-  )
-
-  await gate.ask(
-    permission="demo",
-    patterns=[literal],
-    metadata={},
-  )
-
-  with pytest.raises(PermissionDenied):
-    await gate.ask(
-      permission="demo",
-      patterns=["buildx"],
-      metadata={},
-    )
-
-  assert len(prompt.calls) == 2
+  detail = prompt.calls[0][1]
+  for value in [
+    "first; second",
+    "/project",
+    "-old\n+new",
+    "first *",
+    "second *",
+  ]:
+    assert value in detail
