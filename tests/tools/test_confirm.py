@@ -100,7 +100,7 @@ async def test_only_offered_scopes_are_saved() -> None:
     metadata={},
     always=["other *"],
   )
-  await gate.ask(permission="demo", patterns=["other item"], metadata={})
+  await gate.ask(permission="demo", patterns=["other", "other item"], metadata={})
 
   assert len(prompt.calls) == 1
 
@@ -150,7 +150,12 @@ async def test_an_unapproved_target_requires_a_new_decision() -> None:
   prompt = _ScriptedPrompt(["always", "no"])
   gate = ConfirmGate(prompt)
 
-  await gate.ask(permission="edit", patterns=["a.py"], metadata={})
+  await gate.ask(
+    permission="edit",
+    patterns=["a.py"],
+    metadata={},
+    always=["a.py"],
+  )
 
   with pytest.raises(PermissionDenied):
     await gate.ask(
@@ -167,7 +172,12 @@ async def test_approval_does_not_leak_into_a_new_gate() -> None:
   first_gate = ConfirmGate(prompt)
   second_gate = ConfirmGate(prompt)
 
-  await first_gate.ask(permission="edit", patterns=["a.py"], metadata={})
+  await first_gate.ask(
+    permission="edit",
+    patterns=["a.py"],
+    metadata={},
+    always=["a.py"],
+  )
 
   with pytest.raises(PermissionDenied):
     await second_gate.ask(permission="edit", patterns=["a.py"], metadata={})
