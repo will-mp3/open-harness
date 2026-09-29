@@ -71,6 +71,45 @@ async def test_always_without_scopes_remembers_nothing(
   assert len(prompt.calls) == 2
 
 
+async def test_empty_request_neither_prompts_nor_saves_scopes() -> None:
+  prompt = _ScriptedPrompt(["no"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="demo",
+    patterns=[],
+    metadata={},
+    always=["*"],
+  )
+
+  assert prompt.calls == []
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(permission="demo", patterns=["item"], metadata={})
+
+  assert len(prompt.calls) == 1
+
+
+async def test_only_offered_scopes_are_saved() -> None:
+  prompt = _ScriptedPrompt(["always", "no"])
+  gate = ConfirmGate(prompt)
+
+  await gate.ask(
+    permission="demo",
+    patterns=["original"],
+    metadata={},
+    always=["other *"],
+  )
+  await gate.ask(permission="demo", patterns=["pther item"], metadata={})
+
+  assert len(prompt.calls) == 1
+
+  with pytest.raises(PermissionDenied):
+    await gate.ask(permission="demo", patterns=["original"], metadata={})
+
+  assert len(prompt.calls) == 2
+
+
 async def test_always_remembers_the_supplied_wildcard() -> None:
   prompt = _ScriptedPrompt(["always", "yes"])
   gate = ConfirmGate(prompt)
