@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from open_harness.tools.base import ToolContext
+from open_harness.tools.base import ToolContext, ToolFailure
 from open_harness.tools.builtin.read import ReadParams, ReadTool
 
 
@@ -48,3 +48,13 @@ async def test_read_returns_numbered_lines(tmp_path: Path) -> None:
 
   assert "1: first" in result.output.splitlines()
   assert "2: second" in result.output.splitlines()
+
+
+async def test_read_missing_file_is_an_expected_failure(tmp_path: Path) -> None:
+  with pytest.raises(ToolFailure, match="not found") as exc:
+    await ReadTool().execute(
+      ReadParams(file_path="missing.py"),
+      _ctx(tmp_path),
+    )
+
+  assert "missing.py" in str(exc.value)
