@@ -71,3 +71,22 @@ async def test_read_directory_points_to_ls(tmp_path: Path) -> None:
 
   assert "pkg" in str(exc.value)
   assert "ls" in str(exc.value)
+
+
+async def test_read_pages_lines_and_hints_continuation(tmp_path: Path) -> None:
+  (tmp_path / "a.py").write_text(
+    "first\nsecond\nthird\nfourth\n",
+    encoding="utf-8",
+  )
+
+  result = await ReadTool().execute(
+    ReadParams(file_path="a.py", offset=2, limit=2),
+    _ctx(tmp_path),
+  )
+
+  lines = result.output.splitlines()
+  assert "2: second" in lines
+  assert "3: third" in lines
+  assert "1: first" not in lines
+  assert "4: fourth" not in lines
+  assert "offset=4" in result.output
