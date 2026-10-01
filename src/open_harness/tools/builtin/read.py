@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from pydantic import BaseModel, Field
 
 from open_harness.tools.base import ToolContext, ToolResult
@@ -15,7 +17,14 @@ class ReadTool:
   params = ReadParams
 
   async def execute(self, args: ReadParams, ctx: ToolContext) -> ToolResult:
+    path = ctx.cwd / args.file_path
+    text = await asyncio.to_thread(path.read_text, encoding="utf-8")
+
+    output = "\n".join(
+      f"{number}: {line}" for number, line in enumerate(text.splitlines(), start=1)
+    )
+
     return ToolResult(
       title=f"read {args.file_path}",
-      output="",
+      output=output,
     )
