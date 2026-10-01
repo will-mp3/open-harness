@@ -22,6 +22,8 @@ class ReadTool:
       text = await asyncio.to_thread(path.read_text, encoding="utf-8")
     except FileNotFoundError as exc:
       raise ToolFailure(f"File not found: {args.file_path}") from exc
+    except IsADirectoryError as exc:
+      raise ToolFailure(f"{args.file_path} is a directory. Use the ls tool instead.") from exc
 
     output = "\n".join(
       f"{number}: {line}" for number, line in enumerate(text.splitlines(), start=1)
