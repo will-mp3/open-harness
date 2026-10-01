@@ -9,6 +9,16 @@ from open_harness.tools.base import ToolContext, ToolFailure, ToolResult
 
 class ReadParams(BaseModel):
   file_path: str = Field(description="Path to the file, relative to the working directory")
+  offset: int = Field(
+    default=1,
+    ge=0,
+    description="Starting line number (1-based; 0 uses line 1)",
+  )
+  limit: int = Field(
+    default=2000,
+    ge=0,
+    description="maximum number of lines to return",
+  )
 
 
 class ReadTool:
@@ -25,9 +35,16 @@ class ReadTool:
     except IsADirectoryError as exc:
       raise ToolFailure(f"{args.file_path} is a directory. Use the ls tool instead.") from exc
 
-    output = "\n".join(
-      f"{number}: {line}" for number, line in enumerate(text.splitlines(), start=1)
-    )
+    lines = text.splitlines()
+    offset = args.offset or 1
+    start = offset - 1
+    window = lines[start : start + args.limit]
+
+    output = "\n".join(f"{number}: {line}" for number, line in enumerate(window, start=offset))
+
+    next_offset = offset + len(window)
+    if next_offset <= len(lines):
+      output += f"\n\nRead again with offset={next_offset} to continue."
 
     return ToolResult(
       title=f"read {args.file_path}",
