@@ -58,3 +58,16 @@ async def test_read_missing_file_is_an_expected_failure(tmp_path: Path) -> None:
     )
 
   assert "missing.py" in str(exc.value)
+
+
+async def test_read_directory_points_to_ls(tmp_path: Path) -> None:
+  (tmp_path / "pkg").mkdir()
+
+  with pytest.raises(ToolFailure, match="directory") as exc:
+    await ReadTool().execute(
+      ReadParams(file_path="pkg"),
+      _ctx(tmp_path),
+    )
+
+  assert "pkg" in str(exc.value)
+  assert "ls" in str(exc.value)
