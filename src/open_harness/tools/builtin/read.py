@@ -4,7 +4,7 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
-from open_harness.tools.base import ToolContext, ToolResult
+from open_harness.tools.base import ToolContext, ToolFailure, ToolResult
 
 
 class ReadParams(BaseModel):
@@ -18,7 +18,10 @@ class ReadTool:
 
   async def execute(self, args: ReadParams, ctx: ToolContext) -> ToolResult:
     path = ctx.cwd / args.file_path
-    text = await asyncio.to_thread(path.read_text, encoding="utf-8")
+    try:
+      text = await asyncio.to_thread(path.read_text, encoding="utf-8")
+    except FileNotFoundError as exc:
+      raise ToolFailure(f"File not found: {args.file_path}") from exc
 
     output = "\n".join(
       f"{number}: {line}" for number, line in enumerate(text.splitlines(), start=1)
