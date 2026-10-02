@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from open_harness.tools.base import ToolContext, ToolFailure, ToolResult
 
+MAX_LINE_LENGTH = 2000
+
 
 class ReadParams(BaseModel):
   file_path: str = Field(description="Path to the file, relative to the working directory")
@@ -45,7 +47,13 @@ class ReadTool:
     start = offset - 1
     window = lines[start : start + args.limit]
 
-    output = "\n".join(f"{number}: {line}" for number, line in enumerate(window, start=offset))
+    rendered: list[str] = []
+    for number, line in enumerate(window, start=offset):
+      if len(line) > MAX_LINE_LENGTH:
+        line = line[:MAX_LINE_LENGTH] + f"... (line truncated to {MAX_LINE_LENGTH} chars)"
+      rendered.append(f"{number}: {line}")
+
+    output = "\n".join(rendered)
 
     next_offset = offset + len(window)
     if next_offset <= len(lines):
