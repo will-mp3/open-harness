@@ -141,3 +141,34 @@ async def test_read_caps_long_lines_and_marks_truncation(tmp_path: Path) -> None
   assert "x" * 2001 not in lines[0]
   assert "truncated" in lines[0]
   assert "2: tail" in lines
+
+
+@pytest.mark.parametrize(
+  "content",
+  [
+    b"hello\x00world",
+    b"/x01\x02\x03\x04abcdef",
+  ],
+)
+async def test_read_rejects_binary_content(
+  tmp_path: Path,
+  content: bytes,
+) -> None:
+  (tmp_path / "blob.txt").write_bytes(content)
+
+  with pytest.raises(ToolFailure, match="binary"):
+    await ReadTool().execute(
+      ReadParams(file_path="blob.txt"),
+      _ctx(tmp_path),
+    )
+
+
+async def test_read_accepts_unicode_text(tmp_path: Path) -> None:
+  (tmp_path / "unicode.txt").write_text("你好，世界\n", encoding="utf-8")
+
+  result = await ReadTool().execute(
+    ReadParams(file_path="unicode.txt"),
+    _ctx(tmp_path),
+  )
+
+  assert "1: 你好，世界" in result.output.splitlines()
