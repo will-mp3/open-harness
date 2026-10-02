@@ -111,3 +111,15 @@ async def test_read_rejects_offset_beyond_end(
       ReadParams(file_path="a.py", offset=offset),
       _ctx(tmp_path),
     )
+
+
+async def test_read_empty_file_reports_it_is_empty(tmp_path: Path) -> None:
+  (tmp_path / "empty.text").write_text("", encoding="utf-8")
+
+  result = await ReadTool().execute(
+    ReadParams(file_path="empty.txt"),
+    _ctx(tmp_path),
+  )
+
+  assert "empty" in result.output.lower()
+  assert "offset=" not in result.output
