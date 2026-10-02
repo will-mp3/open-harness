@@ -7,6 +7,17 @@ from pydantic import BaseModel, Field
 from open_harness.tools.base import ToolContext, ToolFailure, ToolResult
 
 MAX_LINE_LENGTH = 2000
+SAMPLE_BYTES = 4096
+
+
+def _looks_binary(sample: bytes) -> bool:
+  if b"\x00" in sample:
+    return True
+  if not sample:
+    return False
+
+  control_count = sum(byte < 9 or 13 < byte < 32 for byte in sample)
+  return control_count / len(sample) > 0.3
 
 
 class ReadParams(BaseModel):
@@ -31,13 +42,16 @@ class ReadTool:
   async def execute(self, args: ReadParams, ctx: ToolContext) -> ToolResult:
     path = ctx.cwd / args.file_path
     try:
-      text = await asyncio.to_thread(path.read_text, encoding="utf-8")
+      raw = await asyncio.to_thread(path.read_bytes)
     except FileNotFoundError as exc:
       raise ToolFailure(f"File not found: {args.file_path}") from exc
     except IsADirectoryError as exc:
       raise ToolFailure(f"{args.file_path} is a directory. Use the ls tool instead.") from exc
 
-    lines = text.splitlines()
+    if _looks_binary(raw[:SAMPLE_BYTES]):
+      raise ToolFailure(f"Cannot read {args.file_path}: file appears to be binary.")
+
+    lines = raw.decode("utf-8").splitlines()
     offset = args.offset or 1
 
     empty_file_start = not lines and offset == 1

@@ -147,7 +147,7 @@ async def test_read_caps_long_lines_and_marks_truncation(tmp_path: Path) -> None
   "content",
   [
     b"hello\x00world",
-    b"/x01\x02\x03\x04abcdef",
+    b"\x01\x02\x03\x04abcdef",
   ],
 )
 async def test_read_rejects_binary_content(
