@@ -53,5 +53,5 @@ class ReadTool:
 
     return ToolResult(
       title=f"read {args.file_path}",
-      output=output,
+      output=output if lines else "(empty file)",
     )
