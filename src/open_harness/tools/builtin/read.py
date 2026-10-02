@@ -37,6 +37,11 @@ class ReadTool:
 
     lines = text.splitlines()
     offset = args.offset or 1
+
+    empty_file_start = not lines and offset == 1
+    if offset > len(lines) and not empty_file_start:
+      raise ToolFailure(f"Offset {offset} is out of range for this file ({len(lines)} lines)")
+
     start = offset - 1
     window = lines[start : start + args.limit]
 

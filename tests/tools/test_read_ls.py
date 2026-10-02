@@ -111,4 +111,3 @@ async def test_read_rejects_offset_beyond_end(
       ReadParams(file_path="a.py", offset=offset),
       _ctx(tmp_path),
     )
-
