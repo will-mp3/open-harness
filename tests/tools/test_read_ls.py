@@ -90,3 +90,25 @@ async def test_read_pages_lines_and_hints_continuation(tmp_path: Path) -> None:
   assert "1: first" not in lines
   assert "4: fourth" not in lines
   assert "offset=4" in result.output
+
+
+@pytest.mark.parametrize(
+  ("content", "offset"),
+  [
+    ("first\nsecond\nthird", 4),
+    ("", 2),
+  ],
+)
+async def test_read_rejects_offset_beyond_end(
+  tmp_path: Path,
+  content: str,
+  offset: int,
+) -> None:
+  (tmp_path / "a.py").write_text(content, encoding="utf-8")
+
+  with pytest.raises(ToolFailure, match="out of range"):
+    await ReadTool().execute(
+      ReadParams(file_path="a.py", offset=offset),
+      _ctx(tmp_path),
+    )
+
