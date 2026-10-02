@@ -123,3 +123,21 @@ async def test_read_empty_file_reports_it_is_empty(tmp_path: Path) -> None:
 
   assert "empty" in result.output.lower()
   assert "offset=" not in result.output
+
+
+async def test_read_caps_long_lines_and_marks_truncation(tmp_path: Path) -> None:
+  (tmp_path / "long.txt").write_text(
+    "x" * 5000 + "\ntail\n",
+    encoding="utf-8",
+  )
+
+  result = await ReadTool().execute(
+    ReadParams(file_path="long.txt"),
+    _ctx(tmp_path),
+  )
+
+  lines = result.output.splitlines()
+  assert lines[0].startswith("1: " + "x" * 2000)
+  assert "x" * 2001 not in lines[0]
+  assert "truncated" in lines[0]
+  assert "2: tail" in lines
