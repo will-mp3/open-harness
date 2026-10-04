@@ -172,3 +172,20 @@ async def test_read_accepts_unicode_text(tmp_path: Path) -> None:
   )
 
   assert "1: 你好，世界" in result.output.splitlines()
+
+
+@pytest.mark.parametrize(
+  "filename",
+  ["archive.zip", "module.pyc", "module.wasm"],
+)
+async def test_read_rejects_known_binary_extensions(
+  tmp_path: Path,
+  filename: str,
+) -> None:
+  (tmp_path / filename).write_bytes(b"plain-looking header\n")
+
+  with pytest.raises(ToolFailure, match="binary"):
+    await ReadTool().execute(
+      ReadParams(file_path=filename),
+      _ctx(tmp_path),
+    )
