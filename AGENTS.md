@@ -11,8 +11,8 @@
 
 Project specifications and implementation plans live here:
 
-- Specifications: `docs/the-ark/specs/`
-- Implementation plans: `docs/the-ark/plans/`
+- Specifications: `docs/halo/specs/`
+- Implementation plans: `docs/halo/plans/`
 
 Use the relevant documents there as the project evolves.
 
